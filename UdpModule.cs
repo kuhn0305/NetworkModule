@@ -37,7 +37,6 @@ public class UdpModule
 
     private UdpClient udpClient;
     private string broadcastIP;
-    private int port;
 
     private const int udpConnectionReset = -1744830452;
 
@@ -59,9 +58,8 @@ public class UdpModule
     public void Initialize(string udpBroadcastIP, int udpPort)
     {
         broadcastIP = udpBroadcastIP;
-        port = udpPort;
 
-        IPEndPoint ipep = new IPEndPoint(IPAddress.Any, port);
+        IPEndPoint ipep = new IPEndPoint(IPAddress.Any, udpPort);
         udpClient = new UdpClient(ipep)
         {
             EnableBroadcast = true
