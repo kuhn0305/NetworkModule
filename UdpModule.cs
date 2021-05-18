@@ -26,12 +26,17 @@ public class UdpModule
     }
 
 
-    public delegate void ReceiveMessageHandler(object message);
+    public delegate void ReceiveMessageHandler(ReceiveData message);
     /// <summary>
     /// UDP를 통해 전달받은 데이터를 처리한 이벤트
     /// </summary>
     /// <usage>
-    /// udp.OnReceiveMessage += new UdpModule.ReceiveMessageHandler(Parsing);
+    /// udp.OnReceiveMessage += ShowLog;
+    /// 
+    /// private void ShowLog(UdpModule.ReceiveData message)
+    /// {
+    ///     Console.WriteLine($"{message.header} : {Encoding.Default.GetString(message.content)}");
+    /// }
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
 
@@ -156,7 +161,7 @@ public class UdpModule
                     OnReceiveMessage.Invoke(receiveDataQueue.Dequeue());
                 }
 
-                Thread.Sleep(30);
+                //Thread.Sleep(30);
             }
         }
         catch(ThreadInterruptedException e)
