@@ -137,7 +137,6 @@ public class UdpModule
 
                 ReceiveData receiveData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData);
 
-                receiveDataQueue.Clear();
                 receiveDataQueue.Enqueue(receiveData);
             }
         }
