@@ -6,28 +6,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-/*
-
-OnReceiveUdpMessage(object data)
-{
-    // Do something what you want.
-
-    // Example
-    ReceiveData receiveData = (ReceiveData)data;
-    Console.WriteLine($"수신한 메세지: {Encoding.Default.GetString(receiveData.data)}");
-}
-
-// You can start UDP like the code below.
-
-string boradcastIP;
-int udpServerPort;
-
-UdpModule udp = new UdpModule();
-udp.Initialize(broadcastIP, udpServerPort);
-udp.OnReceiveMessage += new UdpModule.ReceiveMessageHandler(UdpParser.OnReceiveUdpMessage);
-*/
-
-class ReceiveData
+/// <summary>
+/// UDP를 통해 전달받을 데이터 형식
+/// </summary>
+public class ReceiveData
 {
     public string header;
     public byte[] data;
@@ -39,9 +21,18 @@ class ReceiveData
     }
 }
 
-class UdpModule
+/// <summary>
+/// UDP 통신 모듈
+/// </summary>
+public class UdpModule
 {
     public delegate void ReceiveMessageHandler(object message);
+    /// <summary>
+    /// UDP를 통해 전달받은 데이터를 처리한 이벤트
+    /// </summary>
+    /// <usage>
+    /// udp.OnReceiveMessage += new UdpModule.ReceiveMessageHandler(Parsing);
+    /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
 
     private UdpClient udpClient;
@@ -56,6 +47,15 @@ class UdpModule
 
     private readonly int headerSize = 10;
 
+    /// <summary>
+    /// UDP 모듈을 초기화시켜준다.
+    /// </summary>
+    /// <param name="udpBroadcastIP"></param>
+    /// <param name="udpPort"></param>
+    /// <usage>
+    /// UdpModule udp = new UdpModule();
+    /// udp.Initialize(broadcastIP, udpServerPort);
+    /// </usage>
     public void Initialize(string udpBroadcastIP, int udpPort)
     {
         broadcastIP = udpBroadcastIP;
@@ -72,13 +72,23 @@ class UdpModule
         receiveThread = new Thread(ReceiveMessage);
         receiveThread.Start();
 
-        receiveQueueThread = new Thread(() => InvokeMessageEvent());
+        receiveQueueThread = new Thread(InvokeMessageEvent);
         receiveQueueThread.Start();
 
         // UDP가 ICMP 메세지를 받아 수신을 정지하는 것을 막기 위한 장치 (Exception을 무시한다)
         udpClient.Client.IOControl(udpConnectionReset, new byte[] { 0, 0, 0, 0 }, null);
     }
 
+    /// <summary>
+    /// UDP 모듈을 통해 데이터를 전달한다.
+    /// </summary>
+    /// <param name="header">전달할 데이터의 헤더, 크기는 10 Byte다.</param>
+    /// <param name="byteData">전달한 데이터</param>
+    /// <param name="receiverPort">보낼 포트</param>
+    /// <param name="clientIP">보낼 IP, 공백일 경우 Broadcast로 보낸다.</param>
+    /// <usage>
+    /// udp.SendMessage("Command", datas, 8080, "192.168.0.100");
+    /// </usage>
     public void SendMessage(string header, byte[] byteData, int receiverPort, string clientIP = null)
     {
         // byteHeaderData에 10만큼 크기를 할당한 후, byte로 변환된 string header를 넣어준다.
