@@ -49,8 +49,8 @@ public class UdpModule
     /// <summary>
     /// UDP 모듈을 초기화시켜준다.
     /// </summary>
-    /// <param name="udpBroadcastIP"></param>
-    /// <param name="udpPort"></param>
+    /// <param name="udpBroadcastIP">Broadcast로 보낼 IP</param>
+    /// <param name="udpPort">열어놓을 포트</param>
     /// <usage>
     /// UdpModule udp = new UdpModule();
     /// udp.Initialize(broadcastIP, udpServerPort);
@@ -90,24 +90,15 @@ public class UdpModule
     public void SendMessage(string header, byte[] byteData, int receiverPort, string clientIP = null)
     {
         // byteHeaderData에 10만큼 크기를 할당한 후, byte로 변환된 string header를 넣어준다.
-        byte[] headerData = new byte[headerSize];
-        byte[] convertedHeaderData = Encoding.UTF8.GetBytes(header);
+        byte[] headerData = Encoding.UTF8.GetBytes(header);
+        Array.Resize(ref headerData, 10);
+        
+        // Header와 SendData를 합친다.
+        byte[] mergedSendData = new byte[headerData.Length + byteData.Length];
+        Array.Copy(headerData, mergedSendData, headerData.Length);
+        Array.Copy(byteData, 0, mergedSendData, headerData.Length, byteData.Length);
 
-        for (int index = 0; index < convertedHeaderData.Length; index++)
-        {
-            headerData[index] = convertedHeaderData[index];
-        }
-
-        Console.WriteLine(Encoding.Default.GetString(byteData));
-
-        // Header와 SendData를 List를 활용하여 합친다.
-        var sendDataList = new List<byte>();
-        sendDataList.AddRange(headerData);
-        sendDataList.AddRange(byteData);
-
-        byte[] mergedSendData = sendDataList.ToArray();
-
-        if (clientIP == null)
+        if(clientIP == null)
             clientIP = broadcastIP;
 
         udpClient.Send(mergedSendData, mergedSendData.Length, clientIP, receiverPort);
@@ -123,25 +114,14 @@ public class UdpModule
 
             IPEndPoint epRemote = new IPEndPoint(IPAddress.Any, 0);
 
-            while (true)
+            while(true)
             {
                 receivedData = udpClient.Receive(ref epRemote);
 
                 contentsData = new byte[receivedData.Length - headerData.Length];
 
-                for (int index = 0; index < receivedData.Length; index++)
-                {
-                    if (index < headerData.Length)
-                    {
-                        headerData[index] = receivedData[index];
-                    }
-                    else
-                    {
-                        contentsData[index - headerData.Length] = receivedData[index];
-                    }
-                }
-
-                string udpMessage = Encoding.Default.GetString(receivedData);
+                Array.Copy(receivedData, headerData, headerData.Length);
+                Array.Copy(receivedData, headerData.Length, contentsData, 0, contentsData.Length);
 
                 ReceiveData receiveData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData);
 
@@ -151,7 +131,7 @@ public class UdpModule
         }
         catch(ThreadInterruptedException e)
         {
-            
+
         }
     }
 
@@ -159,11 +139,11 @@ public class UdpModule
     {
         try
         {
-            while (true)
+            while(true)
             {
-                if (dataQueue.Count > 0)
+                if(dataQueue.Count > 0)
                 {
-                     OnReceiveMessage.Invoke(dataQueue.Dequeue());
+                    OnReceiveMessage.Invoke(dataQueue.Dequeue());
                 }
 
                 Thread.Sleep(30);
