@@ -113,7 +113,7 @@ public class UdpModule
         udpClient.Send(mergedSendData, mergedSendData.Length, clientIP, receiverPort);
     }
 
-    public void ReceiveMessage()
+    private void ReceiveMessage()
     {
         try
         {
@@ -149,13 +149,13 @@ public class UdpModule
                 dataQueue.Enqueue(receiveData);
             }
         }
-        catch
+        catch(ThreadInterruptedException e)
         {
-
+            
         }
     }
 
-    private async void InvokeMessageEvent()
+    private void InvokeMessageEvent()
     {
         try
         {
@@ -166,10 +166,10 @@ public class UdpModule
                      OnReceiveMessage.Invoke(dataQueue.Dequeue());
                 }
 
-                await Task.Delay(30);
+                Thread.Sleep(30);
             }
         }
-        catch
+        catch(ThreadInterruptedException e)
         {
 
         }
@@ -177,7 +177,10 @@ public class UdpModule
 
     public void Terminate()
     {
-        receiveThread = null;
+        receiveThread.Interrupt();
+        receiveThread.Join();
+        receiveQueueThread.Interrupt();
+        receiveQueueThread.Join();
 
         udpClient.Close();
     }
