@@ -27,12 +27,12 @@ udp.Initialize(broadcastIP, udpServerPort);
 udp.OnReceiveMessage += new UdpModule.ReceiveMessageHandler(UdpParser.OnReceiveUdpMessage);
 */
 
-class ReceiveData
+class ReceivedUdpData
 {
     public string header;
     public byte[] data;
 
-    public ReceiveData(string header, byte[] data)
+    public ReceivedUdpData(string header, byte[] data)
     {
         this.header = header;
         this.data = data;
@@ -52,7 +52,7 @@ class UdpModule
 
     private Thread receiveThread;
     private Thread receiveQueueThread;
-    private Queue<ReceiveData> dataQueue;
+    private Queue<ReceivedUdpData> dataQueue;
 
     private readonly int headerSize = 10;
 
@@ -67,7 +67,7 @@ class UdpModule
             EnableBroadcast = true
         };
 
-        dataQueue = new Queue<ReceiveData>();
+        dataQueue = new Queue<ReceivedUdpData>();
 
         receiveThread = new Thread(ReceiveMessage);
         receiveThread.Start();
@@ -135,7 +135,7 @@ class UdpModule
 
                 string udpMessage = Encoding.Default.GetString(receivedData);
 
-                ReceiveData receiveData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData);
+                ReceivedUdpData receiveData = new ReceivedUdpData(Encoding.Default.GetString(headerData), contentsData);
 
                 dataQueue.Clear();
                 dataQueue.Enqueue(receiveData);
