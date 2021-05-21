@@ -76,11 +76,7 @@ class TcpServer
     {
         sessionList = new List<TcpSession>();
         receiveDataQueue = new Queue<ReceiveData>();
-
-        // TODO: Delete After Test
-        OnReceiveMessage += new ReceiveMessageHandler(OnReceiveTcpMessage);
     }
-
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.
     /// </summary>
@@ -117,33 +113,40 @@ class TcpServer
     /// </usage>
     public void SendMessage(string header, byte[] contentsData, Socket clientSocket)
     {
-        if (!clientSocket.Connected)
+        try
         {
-            return;
+            if (!clientSocket.Connected)
+            {
+                return;
+            }
+
+            byte[] headerData = Encoding.UTF8.GetBytes(header);
+            Array.Resize(ref headerData, headerSize);
+
+            byte[] sendData = new byte[headerData.Length + contentsData.Length];
+            Array.Copy(headerData, sendData, headerData.Length);
+            Array.Copy(contentsData, 0, sendData, headerData.Length, contentsData.Length);
+
+            int dataLength = sendData.Length;
+
+            byte[] dataSize = new byte[4];
+            dataSize = BitConverter.GetBytes(dataLength);
+            clientSocket.Send(dataSize);
+
+            int cumulativeDataLength = 0;
+            int totalDataLength = dataLength;
+            int sendDataLength = 0;
+
+            while (cumulativeDataLength < dataLength)
+            {
+                sendDataLength = clientSocket.Send(sendData, cumulativeDataLength, totalDataLength, SocketFlags.None);
+                cumulativeDataLength += sendDataLength;
+                totalDataLength -= sendDataLength;
+            }
         }
-
-        byte[] headerData = Encoding.UTF8.GetBytes(header);
-        Array.Resize(ref headerData, headerSize);
-
-        byte[] sendData = new byte[headerData.Length + contentsData.Length];
-        Array.Copy(headerData, sendData, headerData.Length);
-        Array.Copy(contentsData, 0, sendData, headerData.Length, contentsData.Length);
-
-        int dataLength = sendData.Length;
-
-        byte[] dataSize = new byte[4];
-        dataSize = BitConverter.GetBytes(dataLength);
-        clientSocket.Send(dataSize);
-
-        int cumulativeDataLength = 0;
-        int totalDataLength = dataLength;
-        int sendDataLength = 0;
-
-        while (cumulativeDataLength < dataLength)
+        catch
         {
-            sendDataLength = clientSocket.Send(sendData, cumulativeDataLength, totalDataLength, SocketFlags.None);
-            cumulativeDataLength += sendDataLength;
-            totalDataLength -= sendDataLength;
+
         }
     }
     public void Terminate()
@@ -193,8 +196,6 @@ class TcpServer
                     TcpSession tcpSession = new TcpSession(client, ip.Address.ToString());
                     sessionList.Add(tcpSession);
 
-                    SendMessage("string", Encoding.Default.GetBytes("HelloWorld!"), client);
-
                     Thread thread = new Thread(new ParameterizedThreadStart(ListenMessage));
                     thread.Start(client);
                 }
@@ -238,15 +239,11 @@ class TcpServer
             if (!clientSocket.Connected)
                 return null;
 
-            Console.WriteLine();
-
             int dataLength;
 
             byte[] dataSize = new byte[4];
             clientSocket.Receive(dataSize, 0, 4, SocketFlags.None);
             dataLength = BitConverter.ToInt32(dataSize, 0);
-
-            Console.WriteLine($"DataLength: {dataLength}");
 
             if (dataLength == 0)
                 return null;
@@ -267,17 +264,11 @@ class TcpServer
                     receivedDataLength = clientSocket.Receive(receivedData, cumulativeDataLength, remainDataLength, 0);
                 }
 
-                Console.WriteLine($"받은 양? {receivedDataLength}");
-
                 if (receivedDataLength == 0)
                     break;
 
                 cumulativeDataLength += receivedDataLength;
                 remainDataLength -= receivedDataLength;
-
-                Console.WriteLine($"누적량 {cumulativeDataLength}");
-                Console.WriteLine($"받아야할 용량 {remainDataLength}");
-                Console.WriteLine("--------------------------------");
             }
 
             byte[] headerData = new byte[headerSize];
@@ -286,17 +277,12 @@ class TcpServer
             Array.Copy(receivedData, 0, headerData, 0, headerSize);
             Array.Copy(receivedData, headerSize, contentsData, 0, dataLength - headerSize);
 
-            Console.WriteLine($"{headerData.Length}");
-            Console.WriteLine($"{contentsData.Length}");
-
             ReceiveData receivedTcpData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData, clientSocket);
 
             return receivedTcpData;
         }
-        catch (Exception e)
+        catch
         {
-            Console.WriteLine(e.Message);
-
             return null;
         }
     }
@@ -304,12 +290,10 @@ class TcpServer
     {
         while (true)
         {
-            if (receiveDataQueue.Count > 0)
+            if (receiveDataQueue.Count > 0 && OnReceiveMessage != null)
             {
                 OnReceiveMessage.Invoke(receiveDataQueue.Dequeue());
             }
-
-            Thread.Sleep(30);
         }
     }
     private void RemoveTerminatedClients()
@@ -342,14 +326,5 @@ class TcpServer
         {
             return false;
         }
-    }
-
-
-    // TODO: Delete After Test
-    private void OnReceiveTcpMessage(ReceiveData receivedData)
-    {
-        Console.WriteLine(Encoding.Default.GetString(receivedData.content));
-
-        SendMessage("string", Encoding.UTF8.GetBytes("TESTing....."), receivedData.socket);
     }
 }
