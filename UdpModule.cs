@@ -115,7 +115,6 @@ public class UdpModule
         udpClient.Close();
     }
 
-
     private void ReceiveMessage()
     {
         try
