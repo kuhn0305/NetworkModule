@@ -76,6 +76,9 @@ class TcpServer
     {
         sessionList = new List<TcpSession>();
         receiveDataQueue = new Queue<ReceiveData>();
+
+        receiveThread = new Thread(InvokeMessageEvent);
+        receiveThread.Start();
     }
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.
@@ -95,9 +98,6 @@ class TcpServer
 
         tcpSocket.Bind(ipEndPoint);
         tcpSocket.Listen(10);
-
-        receiveThread = new Thread(InvokeMessageEvent);
-        receiveThread.Start();
 
         connectThread = new Thread(new ThreadStart(WaitClient));
         connectThread.Start();

@@ -59,6 +59,9 @@ class TcpClient
         reconnectCount = maxReconnectCount;
 
         dataQueue = new Queue<ReceiveData>();
+
+        receiveThread = new Thread(() => InvokeMessageEvent());
+        receiveThread.Start();
     }
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.
@@ -77,9 +80,6 @@ class TcpClient
 
         IPEndPoint serverEndPoint = new IPEndPoint(IPAddress.Parse(serverIp), port);
         tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-        receiveThread = new Thread(() => InvokeMessageEvent());
-        receiveThread.Start();
 
         connectThread = new Thread(new ParameterizedThreadStart(Connect));
         connectThread.Start(serverEndPoint);
