@@ -131,6 +131,7 @@ public class UdpModule
                 contentsData = new byte[receivedData.Length - headerData.Length];
 
                 Array.Copy(receivedData, headerData, headerData.Length);
+                headerData = Array.FindAll(headerData, o => o != 0);
                 Array.Copy(receivedData, headerData.Length, contentsData, 0, contentsData.Length);
 
                 ReceiveData receiveData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData);

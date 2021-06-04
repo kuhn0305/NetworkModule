@@ -233,6 +233,7 @@ class TcpClient
                 byte[] contentsData = new byte[dataLength - headerSize];
 
                 Array.Copy(receivedData, 0, headerData, 0, headerSize);
+                headerData = Array.FindAll(headerData, o => o != 0);
                 Array.Copy(receivedData, headerSize, contentsData, 0, dataLength - headerSize);
 
                 ReceiveData receivedTcpData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData);
