@@ -99,7 +99,7 @@ class TcpServer
         tcpSocket.Bind(ipEndPoint);
         tcpSocket.Listen(10);
 
-        connectThread = new Thread(new ThreadStart(WaitClient));
+        connectThread = new Thread(WaitClient);
         connectThread.Start();
     }
     /// <summary>
@@ -111,16 +111,17 @@ class TcpServer
     /// <usage>
     /// tcp.SendMessage("Command", datas, tcp.sessionList[0].socket);
     /// </usage>
-    public void SendMessage(string header, byte[] contentsData, Socket clientSocket)
+    /// 
+    public void SendMessage(string header, byte[] contentsData, TcpSession clientSession)
     {
         try
         {
-            if (!clientSocket.Connected)
+            if (!clientSession.socket.Connected)
             {
                 return;
             }
 
-            byte[] headerData = Encoding.UTF8.GetBytes(header);
+            byte[] headerData = Encoding.Default.GetBytes(header);
             Array.Resize(ref headerData, headerSize);
 
             byte[] sendData = new byte[headerData.Length + contentsData.Length];
@@ -131,17 +132,25 @@ class TcpServer
 
             byte[] dataSize = new byte[4];
             dataSize = BitConverter.GetBytes(dataLength);
-            clientSocket.Send(dataSize);
+            clientSession.socket.Send(dataSize);
 
             int cumulativeDataLength = 0;
-            int totalDataLength = dataLength;
+            int remainDataLength = dataLength;
             int sendDataLength = 0;
 
             while (cumulativeDataLength < dataLength)
             {
-                sendDataLength = clientSocket.Send(sendData, cumulativeDataLength, totalDataLength, SocketFlags.None);
+                if (remainDataLength > maxPacketSize)
+                {
+                    sendDataLength = clientSession.socket.Send(sendData, cumulativeDataLength, maxPacketSize, SocketFlags.None);
+                }
+                else
+                {
+                    sendDataLength = clientSession.socket.Send(sendData, cumulativeDataLength, remainDataLength, SocketFlags.None);
+                }
+
                 cumulativeDataLength += sendDataLength;
-                totalDataLength -= sendDataLength;
+                remainDataLength -= sendDataLength;
             }
         }
         catch
@@ -151,10 +160,8 @@ class TcpServer
     }
     public void Terminate()
     {
-        connectThread.Interrupt();
-        connectThread.Join();
-        receiveThread.Interrupt();
-        receiveThread.Join();
+        connectThread.Abort();
+        receiveThread.Abort();
 
         tcpSocket.Close();
     }
@@ -185,6 +192,14 @@ class TcpServer
         {
             while (true)
             {
+                // 클라이언트가 Full이라면 쓰레기 Session을 탐색하여 삭제한다.
+                if (sessionList.Count >= maxClientCount)
+                {
+                    RemoveTerminatedClients();
+
+                }
+
+                // 탐색 이후 Session List의 갯수를 확인한다.
                 if (sessionList.Count < maxClientCount)
                 {
                     Socket client = tcpSocket.Accept();
@@ -221,7 +236,6 @@ class TcpServer
                 if (receivedTcpData == null)
                     break;
 
-                receiveDataQueue.Clear();
                 receiveDataQueue.Enqueue(receivedTcpData);
             }
         }
@@ -248,6 +262,7 @@ class TcpServer
             if (dataLength == 0)
                 return null;
 
+            // 헤더 받은 후, 널 값 체크
             byte[] receivedData = new byte[dataLength];
             int remainDataLength = dataLength;
             int cumulativeDataLength = 0;
@@ -288,11 +303,15 @@ class TcpServer
     }
     private void InvokeMessageEvent()
     {
+        ReceiveData receiveData;
+
         while (true)
         {
-            if (receiveDataQueue.Count > 0 && OnReceiveMessage != null)
+            if (receiveDataQueue.Count > 0)
             {
-                OnReceiveMessage.Invoke(receiveDataQueue.Dequeue());
+                receiveData = receiveDataQueue.Dequeue();
+
+                OnReceiveMessage?.Invoke(receiveData);
             }
         }
     }

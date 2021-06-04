@@ -41,10 +41,10 @@ class TcpClient
 
     public Socket tcpSocket = null;
     private Thread connectThread = null;
-    private Thread listenerThread;
-    private Thread receiveThread;
+    private Thread listenerThread = null;
+    private Thread receiveThread = null;
 
-    private Queue<ReceiveData> dataQueue;
+    private Queue<ReceiveData> receiveDataQueue;
 
     private bool isInitialized = false;
     private int reconnectCount;
@@ -58,9 +58,9 @@ class TcpClient
     {
         reconnectCount = maxReconnectCount;
 
-        dataQueue = new Queue<ReceiveData>();
+        receiveDataQueue = new Queue<ReceiveData>();
 
-        receiveThread = new Thread(() => InvokeMessageEvent());
+        receiveThread = new Thread(InvokeMessageEvent);
         receiveThread.Start();
     }
     /// <summary>
@@ -115,14 +115,23 @@ class TcpClient
             tcpSocket.Send(dataSize);
 
             int cumulativeDataLength = 0;
-            int totalDataLength = dataLength;
+            int remainDataLength = dataLength;
             int sendDataLength = 0;
 
             while (cumulativeDataLength < dataLength)
             {
-                sendDataLength = tcpSocket.Send(sendData, cumulativeDataLength, totalDataLength, SocketFlags.None);
+                if(remainDataLength > maxPacketSize)
+                {
+                    sendDataLength = tcpSocket.Send(sendData, cumulativeDataLength, maxPacketSize, SocketFlags.None);
+
+                }
+                else
+                {
+                    sendDataLength = tcpSocket.Send(sendData, cumulativeDataLength, remainDataLength, SocketFlags.None);
+
+                }
                 cumulativeDataLength += sendDataLength;
-                totalDataLength -= sendDataLength;
+                remainDataLength -= sendDataLength;
             }
         }
         catch
@@ -133,10 +142,9 @@ class TcpClient
     }
     public void Terminate()
     {
-        connectThread.Interrupt();
-        connectThread.Join();
-        listenerThread.Interrupt();
-        listenerThread.Join();
+        connectThread.Abort();
+        listenerThread.Abort();
+        receiveThread.Abort();
 
         tcpSocket.Close();
     }
@@ -153,8 +161,8 @@ class TcpClient
             if (tcpSocket.Connected)
             {
                 tcpSocket.EndConnect(connectResult);
-                dataQueue.Clear();
-                listenerThread = new Thread(() => ReceiveMessage());
+                receiveDataQueue.Clear();
+                listenerThread = new Thread(ReceiveMessage);
                 listenerThread.Start();
 
                 isInitialized = true;
@@ -229,7 +237,7 @@ class TcpClient
 
                 ReceiveData receivedTcpData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData);
 
-                dataQueue.Enqueue(receivedTcpData);
+                receiveDataQueue.Enqueue(receivedTcpData);
             }
         }
         catch
@@ -239,11 +247,15 @@ class TcpClient
     }
     private void InvokeMessageEvent()
     {
+        ReceiveData receiveData;
+
         while (true)
         {
-            if (dataQueue?.Count > 0 && OnReceiveMessage != null)
+            if (receiveDataQueue.Count > 0)
             {
-                OnReceiveMessage.Invoke(dataQueue.Dequeue());
+                receiveData = receiveDataQueue.Dequeue();
+
+                OnReceiveMessage?.Invoke(receiveData);
             }
 
             if (isInitialized && !tcpSocket.Connected)

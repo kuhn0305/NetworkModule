@@ -103,14 +103,14 @@ public class UdpModule
             targetIP = broadcastIP;
         }
 
+        Console.WriteLine(Encoding.Default.GetString(sendData));
+
         udpClient.Send(sendData, sendData.Length, targetIP, targetPort);
     }
     public void Terminate()
     {
-        receiveThread.Interrupt();
-        receiveThread.Join();
-        invokeMessageEventThread.Interrupt();
-        invokeMessageEventThread.Join();
+        receiveThread.Abort();
+        invokeMessageEventThread.Abort();
 
         udpClient.Close();
     }
