@@ -77,7 +77,7 @@ public class UdpModule
         invokeMessageEventThread.Start();
 
         // UDP가 ICMP 메세지를 받아 수신을 정지하는 것을 막기 위한 장치 (Exception을 무시한다)
-        udpClient.Client.IOControl(udpConnectionReset, new byte[] { 0, 0, 0, 0 }, null);
+        //udpClient.Client.IOControl(udpConnectionReset, new byte[] { 0, 0, 0, 0 }, null);
     }
     /// <summary>
     /// UDP 모듈을 통해 데이터를 전달한다.
