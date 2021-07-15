@@ -78,6 +78,8 @@ class TcpServer
     private int maxClientCount = 0;
     private readonly int headerSize = 10;
     private readonly int maxPacketSize = 1024;
+    private bool isMaxConnection;
+    private IPEndPoint ipEndPoint;
 
     public TcpServer()
     {
@@ -100,9 +102,9 @@ class TcpServer
     {
         this.maxClientCount = maxClientCount;
 
-        IPEndPoint ipEndPoint = new IPEndPoint(IPAddress.Any, port);
-        tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        ipEndPoint = new IPEndPoint(IPAddress.Any, port);
 
+        tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         tcpSocket.Bind(ipEndPoint);
         tcpSocket.Listen(10);
 
@@ -212,6 +214,12 @@ class TcpServer
                 // 탐색 이후 Session List의 갯수를 확인한다.
                 if(sessionList.Count < maxClientCount)
                 {
+                    if(isMaxConnection)
+                    {
+                        tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                        tcpSocket.Bind(ipEndPoint);
+                        tcpSocket.Listen(10);
+                    }
                     Socket client = tcpSocket.Accept();
                     IPEndPoint ip = (IPEndPoint)client.RemoteEndPoint;
 
@@ -223,6 +231,11 @@ class TcpServer
 
                     Thread listenThread = new Thread(new ParameterizedThreadStart(ListenMessage));
                     listenThread.Start(client);
+                }
+                else
+                {
+                    tcpSocket.Close();
+                    isMaxConnection = true;
                 }
             }
         }
