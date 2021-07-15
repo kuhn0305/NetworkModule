@@ -194,15 +194,18 @@ class TcpServer
         {
             while(true)
             {
+                PrintLog("Wait : Before");
                 // 클라이언트가 Full이라면 쓰레기 Session을 탐색하여 삭제한다.
                 if(sessionList.Count >= maxClientCount)
                 {
+                    PrintLog("Wait : Max");
                     RemoveTerminatedClients();
                 }
 
                 // 탐색 이후 Session List의 갯수를 확인한다.
                 if(sessionList.Count < maxClientCount)
                 {
+                    PrintLog("Wait : Accept");
                     Socket client = tcpSocket.Accept();
                     PrintLog("Accept Client");
                     IPEndPoint ip = (IPEndPoint)client.RemoteEndPoint;
@@ -215,6 +218,8 @@ class TcpServer
                     Thread listenThread = new Thread(new ParameterizedThreadStart(ListenMessage));
                     listenThread.Start(client);
                 }
+
+                PrintLog("Wait : Result /" + sessionList.Count);
             }
         }
         catch(Exception e)
@@ -302,6 +307,7 @@ class TcpServer
         catch(Exception e)
         {
             PrintLog("Receive Error : " + e.Message);
+            TerminateClient(clientSocket);
             return null;
         }
     }
