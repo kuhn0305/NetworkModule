@@ -60,8 +60,8 @@ class TcpServer
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
 
-    public delegate void LogDelegate(string message);
-    public LogDelegate PrintLog;
+    public delegate void LogEventHandler(string message);
+    public LogEventHandler Log;
 
     public List<TcpSession> sessionList;
 
@@ -194,23 +194,19 @@ class TcpServer
         {
             while(true)
             {
-                PrintLog("Wait : Before");
                 // 클라이언트가 Full이라면 쓰레기 Session을 탐색하여 삭제한다.
                 if(sessionList.Count >= maxClientCount)
                 {
-                    PrintLog("Wait : Max");
-                    RemoveTerminatedClients();
+                    //RemoveTerminatedClients();
                 }
 
                 // 탐색 이후 Session List의 갯수를 확인한다.
                 if(sessionList.Count < maxClientCount)
                 {
-                    PrintLog("Wait : Accept");
                     Socket client = tcpSocket.Accept();
-                    PrintLog("Accept Client");
                     IPEndPoint ip = (IPEndPoint)client.RemoteEndPoint;
 
-                    RemoveTerminatedClients();
+                    //RemoveTerminatedClients();
 
                     TcpSession tcpSession = new TcpSession(client, ip.Address.ToString());
                     sessionList.Add(tcpSession);
@@ -218,13 +214,11 @@ class TcpServer
                     Thread listenThread = new Thread(new ParameterizedThreadStart(ListenMessage));
                     listenThread.Start(client);
                 }
-
-                PrintLog("Wait : Result /" + sessionList.Count);
             }
         }
         catch(Exception e)
         {
-            PrintLog("Wait Error : " + e.Message);
+            Log("Wait Error : " + e.Message);
         }
     }
     private void ListenMessage(object socket)
@@ -246,7 +240,7 @@ class TcpServer
         }
         catch(Exception e)
         {
-            PrintLog("Listen Error : " + e.Message);
+            Log("Listen Error : " + e.Message);
         }
     }
     private ReceiveData ReceiveMessage(Socket clientSocket)
@@ -304,12 +298,17 @@ class TcpServer
 
             return receivedTcpData;
         }
+        catch(SocketException e)
+        {
+            Log("Receive Error : " + e.Message + "/" + e.GetType());
+            TerminateClient(clientSocket);
+        }
         catch(Exception e)
         {
-            PrintLog("Receive Error : " + e.Message);
-            TerminateClient(clientSocket);
-            return null;
+            Log("Receive Error : " + e.Message + "/" + e.GetType());
         }
+
+        return null;
     }
     private void InvokeMessageEvent()
     {
@@ -330,7 +329,7 @@ class TcpServer
         {
             if(!IsClientConnected(tcpSession.socket))
             {
-                PrintLog("Socket Disconnected : " + tcpSession.socket.LocalEndPoint);
+                Log("Socket Disconnected : " + tcpSession.socket.LocalEndPoint);
                 tcpSession.TerminateClient();
 
                 terminatedSessionList.Add(tcpSession);
@@ -347,13 +346,13 @@ class TcpServer
     {
         try
         {
-            PrintLog("Socket Available : " + socket.Available);
-            PrintLog("Socket Poll : " + socket.Poll(1, SelectMode.SelectRead));
+            Log("Socket Available : " + socket.Available);
+            Log("Socket Poll : " + socket.Poll(1, SelectMode.SelectRead));
             return !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
         }
         catch(SocketException e)
         {
-            PrintLog("Check Connection Error : " + e.Message);
+            Log("Check Connection Error : " + e.Message);
             return false;
         }
     }
