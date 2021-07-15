@@ -39,10 +39,13 @@ class TcpClient
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
 
+    public delegate void LogDelegate(string message);
+    public LogDelegate PrintLog = null;
+
     public Socket tcpSocket = null;
     private Thread connectThread = null;
-    private Thread listenerThread = null;
     private Thread receiveThread = null;
+    private Thread invokeMessageThread = null;
 
     private Queue<ReceiveData> receiveDataQueue;
 
@@ -50,18 +53,20 @@ class TcpClient
     private int reconnectCount;
     private string serverIp;
     private int port;
-    private readonly int maxReconnectCount = 20;
+    private int maxReconnectCount;
+
     private readonly int maxPacketSize = 1024;
     private readonly int headerSize = 10;
 
-    public TcpClient()
+    public TcpClient(int maxReconnectCount)
     {
+        this.maxReconnectCount = maxReconnectCount;
         reconnectCount = maxReconnectCount;
 
         receiveDataQueue = new Queue<ReceiveData>();
 
-        receiveThread = new Thread(InvokeMessageEvent);
-        receiveThread.Start();
+        invokeMessageThread = new Thread(InvokeMessageEvent);
+        invokeMessageThread.Start();
     }
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.
@@ -96,7 +101,7 @@ class TcpClient
     {
         try
         {
-            if (!tcpSocket.Connected)
+            if(!tcpSocket.Connected)
             {
                 return;
             }
@@ -118,7 +123,7 @@ class TcpClient
             int remainDataLength = dataLength;
             int sendDataLength = 0;
 
-            while (cumulativeDataLength < dataLength)
+            while(cumulativeDataLength < dataLength)
             {
                 if(remainDataLength > maxPacketSize)
                 {
@@ -134,36 +139,37 @@ class TcpClient
                 remainDataLength -= sendDataLength;
             }
         }
-        catch
+        catch(Exception e)
         {
-
+            PrintLog(e.Message);
         }
 
     }
     public void Terminate()
     {
-        connectThread.Abort();
-        listenerThread.Abort();
-        receiveThread.Abort();
-
-        tcpSocket.Close();
+        connectThread?.Abort();
+        receiveThread?.Abort();
+        receiveThread?.Abort();
+        tcpSocket.Disconnect(true);
     }
 
     private void Connect(object endPoint)
     {
         try
         {
+            PrintLog("Try Connect");
             IPEndPoint ipEndpoint = (IPEndPoint)endPoint;
 
             IAsyncResult connectResult = tcpSocket.BeginConnect(ipEndpoint, null, null);
             bool success = connectResult.AsyncWaitHandle.WaitOne(5000, true);
 
-            if (tcpSocket.Connected)
+            if(tcpSocket.Connected)
             {
                 tcpSocket.EndConnect(connectResult);
+                PrintLog("Connect Accept");
                 receiveDataQueue.Clear();
-                listenerThread = new Thread(ReceiveMessage);
-                listenerThread.Start();
+                receiveThread = new Thread(ReceiveMessage);
+                receiveThread.Start();
 
                 isInitialized = true;
                 reconnectCount = maxReconnectCount;
@@ -174,28 +180,31 @@ class TcpClient
                 throw new SocketException(10060);
             }
         }
-        catch (SocketException e)
+        catch(SocketException e)
         {
-            if (e.ErrorCode == 10060)
+            PrintLog("Errror Connect A ; " + e.Message);
+
+            if(e.ErrorCode == 10060 && reconnectCount-- != 0)
             {
-                if (reconnectCount-- != 0)
-                {
-                    Thread.Sleep(3000);
-
-                    InitializeClient(serverIp, port);
-                }
-                else
-                {
-
-                }
+                Thread.Sleep(3000);
+                PrintLog("Retry Connect");
+                InitializeClient(serverIp, port);
             }
+            else
+            {
+                PrintLog("No Retry Connect");
+            }
+        }
+        catch(Exception e)
+        {
+            PrintLog("Errror Connect B ; " + e.Message);
         }
     }
     private void ReceiveMessage()
     {
         try
         {
-            while (true)
+            while(true)
             {
                 int dataLength;
 
@@ -203,17 +212,19 @@ class TcpClient
                 tcpSocket.Receive(dataSize, 0, 4, SocketFlags.None);
                 dataLength = BitConverter.ToInt32(dataSize, 0);
 
-                if (dataLength == 0)
+                if(dataLength == 0)
+                {
                     return;
+                }
 
                 byte[] receivedData = new byte[dataLength];
                 int remainDataLength = dataLength;
                 int cumulativeDataLength = 0;
                 int receivedDataLength = 0;
 
-                while (cumulativeDataLength < dataLength)
+                while(cumulativeDataLength < dataLength)
                 {
-                    if (remainDataLength > maxPacketSize)
+                    if(remainDataLength > maxPacketSize)
                     {
                         receivedDataLength = tcpSocket.Receive(receivedData, cumulativeDataLength, maxPacketSize, 0);
                     }
@@ -222,7 +233,7 @@ class TcpClient
                         receivedDataLength = tcpSocket.Receive(receivedData, cumulativeDataLength, remainDataLength, 0);
                     }
 
-                    if (receivedDataLength == 0)
+                    if(receivedDataLength == 0)
                         break;
 
                     cumulativeDataLength += receivedDataLength;
@@ -241,26 +252,24 @@ class TcpClient
                 receiveDataQueue.Enqueue(receivedTcpData);
             }
         }
-        catch
+        catch(Exception e)
         {
-
+            PrintLog("Receive Error : " + e.Message);
         }
     }
     private void InvokeMessageEvent()
     {
-        ReceiveData receiveData;
-
-        while (true)
+        while(true)
         {
-            if (receiveDataQueue.Count > 0)
+            if(receiveDataQueue.Count > 0)
             {
-                receiveData = receiveDataQueue.Dequeue();
-
+                ReceiveData receiveData = receiveDataQueue.Dequeue();
                 OnReceiveMessage?.Invoke(receiveData);
             }
 
-            if (isInitialized && !tcpSocket.Connected)
+            if(isInitialized && !tcpSocket.Connected)
             {
+                PrintLog("Invoke Fail");
                 Terminate();
                 InitializeClient(serverIp, port);
             }

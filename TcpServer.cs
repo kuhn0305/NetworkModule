@@ -60,11 +60,14 @@ class TcpServer
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
 
+    public delegate void LogDelegate(string message);
+    public LogDelegate PrintLog;
+
     public List<TcpSession> sessionList;
 
     private Socket tcpSocket = null;
-    private Thread connectThread = null;
-    private Thread receiveThread = null;
+    private Thread waitThread = null;
+    private Thread invokeMessageThread = null;
 
     private Queue<ReceiveData> receiveDataQueue;
 
@@ -77,8 +80,8 @@ class TcpServer
         sessionList = new List<TcpSession>();
         receiveDataQueue = new Queue<ReceiveData>();
 
-        receiveThread = new Thread(InvokeMessageEvent);
-        receiveThread.Start();
+        invokeMessageThread = new Thread(InvokeMessageEvent);
+        invokeMessageThread.Start();
     }
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.
@@ -99,8 +102,8 @@ class TcpServer
         tcpSocket.Bind(ipEndPoint);
         tcpSocket.Listen(10);
 
-        connectThread = new Thread(WaitClient);
-        connectThread.Start();
+        waitThread = new Thread(WaitClient);
+        waitThread.Start();
     }
     /// <summary>
     /// TCP 서버를 통해 데이터를 전달한다.
@@ -116,7 +119,7 @@ class TcpServer
     {
         try
         {
-            if (!clientSession.socket.Connected)
+            if(!clientSession.socket.Connected)
             {
                 return;
             }
@@ -138,9 +141,9 @@ class TcpServer
             int remainDataLength = dataLength;
             int sendDataLength = 0;
 
-            while (cumulativeDataLength < dataLength)
+            while(cumulativeDataLength < dataLength)
             {
-                if (remainDataLength > maxPacketSize)
+                if(remainDataLength > maxPacketSize)
                 {
                     sendDataLength = clientSession.socket.Send(sendData, cumulativeDataLength, maxPacketSize, SocketFlags.None);
                 }
@@ -160,29 +163,28 @@ class TcpServer
     }
     public void Terminate()
     {
-        connectThread.Abort();
-        receiveThread.Abort();
-
+        waitThread?.Abort();
+        invokeMessageThread?.Abort();
         tcpSocket.Close();
     }
     /// <summary>
     /// Client로부터 Disconnect 신호를 받고, 해당 클라이언트를 삭제한다.
     /// </summary>
     /// <param name="targetSocket">신호를 보낸 클라이언트의 소켓</param>
-    public void RemoveTerminatedClient(Socket targetSocket)
+    public void TerminateClient(Socket targetSocket)
     {
         TcpSession targetSession = null;
 
-        foreach (TcpSession tcpSession in sessionList)
+        foreach(TcpSession tcpSession in sessionList)
         {
-            if (tcpSession.socket == targetSocket)
+            if(tcpSession.socket == targetSocket)
             {
                 targetSession = tcpSession;
+                break;
             }
         }
 
         targetSession.TerminateClient();
-
         sessionList.Remove(targetSession);
     }
 
@@ -190,20 +192,19 @@ class TcpServer
     {
         try
         {
-            while (true)
+            while(true)
             {
                 // 클라이언트가 Full이라면 쓰레기 Session을 탐색하여 삭제한다.
-                if (sessionList.Count >= maxClientCount)
+                if(sessionList.Count >= maxClientCount)
                 {
                     RemoveTerminatedClients();
-
                 }
 
                 // 탐색 이후 Session List의 갯수를 확인한다.
-                if (sessionList.Count < maxClientCount)
+                if(sessionList.Count < maxClientCount)
                 {
                     Socket client = tcpSocket.Accept();
-
+                    PrintLog("Accept Client");
                     IPEndPoint ip = (IPEndPoint)client.RemoteEndPoint;
 
                     RemoveTerminatedClients();
@@ -211,17 +212,15 @@ class TcpServer
                     TcpSession tcpSession = new TcpSession(client, ip.Address.ToString());
                     sessionList.Add(tcpSession);
 
-                    Thread thread = new Thread(new ParameterizedThreadStart(ListenMessage));
-                    thread.Start(client);
+                    Thread listenThread = new Thread(new ParameterizedThreadStart(ListenMessage));
+                    listenThread.Start(client);
                 }
             }
         }
-        catch (ThreadInterruptedException e)
+        catch(Exception e)
         {
-
+            PrintLog("Wait Error : " + e.Message);
         }
-
-
     }
     private void ListenMessage(object socket)
     {
@@ -229,29 +228,30 @@ class TcpServer
         {
             Socket clientSocket = (Socket)socket;
 
-            while (true)
+            while(true)
             {
                 ReceiveData receivedTcpData = ReceiveMessage(clientSocket);
-
-                if (receivedTcpData == null)
+                if(receivedTcpData == null)
+                {
                     break;
+                }
 
                 receiveDataQueue.Enqueue(receivedTcpData);
             }
         }
-        catch (ThreadInterruptedException e)
+        catch(Exception e)
         {
-
+            PrintLog("Listen Error : " + e.Message);
         }
-
-
     }
     private ReceiveData ReceiveMessage(Socket clientSocket)
     {
         try
         {
-            if (!clientSocket.Connected)
+            if(!clientSocket.Connected)
+            {
                 return null;
+            }
 
             int dataLength;
 
@@ -259,8 +259,10 @@ class TcpServer
             clientSocket.Receive(dataSize, 0, 4, SocketFlags.None);
             dataLength = BitConverter.ToInt32(dataSize, 0);
 
-            if (dataLength == 0)
+            if(dataLength == 0)
+            {
                 return null;
+            }
 
             // 헤더 받은 후, 널 값 체크
             byte[] receivedData = new byte[dataLength];
@@ -268,9 +270,9 @@ class TcpServer
             int cumulativeDataLength = 0;
             int receivedDataLength = 0;
 
-            while (cumulativeDataLength < dataLength)
+            while(cumulativeDataLength < dataLength)
             {
-                if (remainDataLength > maxPacketSize)
+                if(remainDataLength > maxPacketSize)
                 {
                     receivedDataLength = clientSocket.Receive(receivedData, cumulativeDataLength, maxPacketSize, 0);
                 }
@@ -279,7 +281,7 @@ class TcpServer
                     receivedDataLength = clientSocket.Receive(receivedData, cumulativeDataLength, remainDataLength, 0);
                 }
 
-                if (receivedDataLength == 0)
+                if(receivedDataLength == 0)
                     break;
 
                 cumulativeDataLength += receivedDataLength;
@@ -297,21 +299,19 @@ class TcpServer
 
             return receivedTcpData;
         }
-        catch
+        catch(Exception e)
         {
+            PrintLog("Receive Error : " + e.Message);
             return null;
         }
     }
     private void InvokeMessageEvent()
     {
-        ReceiveData receiveData;
-
-        while (true)
+        while(true)
         {
-            if (receiveDataQueue.Count > 0)
+            if(receiveDataQueue.Count > 0)
             {
-                receiveData = receiveDataQueue.Dequeue();
-
+                ReceiveData receiveData = receiveDataQueue.Dequeue();
                 OnReceiveMessage?.Invoke(receiveData);
             }
         }
@@ -320,30 +320,34 @@ class TcpServer
     {
         List<TcpSession> terminatedSessionList = new List<TcpSession>();
 
-        foreach (TcpSession tcpSession in sessionList)
+        foreach(TcpSession tcpSession in sessionList)
         {
-            if (!IsClientConnected(tcpSession.socket))
+            if(!IsClientConnected(tcpSession.socket))
             {
-
+                PrintLog("Socket Disconnected : " + tcpSession.socket.LocalEndPoint);
                 tcpSession.TerminateClient();
 
                 terminatedSessionList.Add(tcpSession);
             }
         }
 
-        foreach (TcpSession targetPlayer in terminatedSessionList)
+        foreach(TcpSession targetPlayer in terminatedSessionList)
         {
             sessionList.Remove(targetPlayer);
         }
     }
+
     private bool IsClientConnected(Socket socket)
     {
         try
         {
+            PrintLog("Socket Available : " + socket.Available);
+            PrintLog("Socket Poll : " + socket.Poll(1, SelectMode.SelectRead));
             return !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
         }
-        catch (SocketException)
+        catch(SocketException e)
         {
+            PrintLog("Check Connection Error : " + e.Message);
             return false;
         }
     }
