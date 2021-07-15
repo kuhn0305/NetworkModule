@@ -40,7 +40,7 @@ class TcpClient
     public event ReceiveMessageHandler OnReceiveMessage;
 
     public delegate void LogDelegate(string message);
-    public event LogDelegate Log = delegate { };
+    public event LogDelegate Log;
 
     public Socket tcpSocket = null;
     private Thread connectThread = null;
@@ -141,7 +141,7 @@ class TcpClient
         }
         catch(Exception e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
         }
 
     }
@@ -180,7 +180,7 @@ class TcpClient
         }
         catch(SocketException e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
             if(e.ErrorCode == (int)SocketError.TimedOut && reconnectCount-- != 0)
             {
                 Thread.Sleep(3000);
@@ -189,7 +189,7 @@ class TcpClient
         }
         catch(Exception e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
         }
     }
     private void ReceiveMessage()
@@ -241,7 +241,7 @@ class TcpClient
         }
         catch(SocketException e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
             if(e.ErrorCode == (int)SocketError.ConnectionReset)
             {
                 InitializeClient(serverIp, port);
@@ -249,7 +249,7 @@ class TcpClient
         }
         catch(Exception e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
         }
     }
     private void InvokeMessageEvent()

@@ -61,8 +61,8 @@ class TcpServer
     public event ReceiveMessageHandler OnReceiveMessage;
 
     public delegate void SessionChangedEventHandler(TcpSession clientSession);
-    public event SessionChangedEventHandler OnConnectAccept = delegate { };
-    public event SessionChangedEventHandler OnTerminate = delegate { };
+    public event SessionChangedEventHandler OnConnectAccept;
+    public event SessionChangedEventHandler OnTerminate;
 
     public delegate void LogEventHandler(string message);
     public event LogEventHandler Log;
@@ -193,7 +193,7 @@ class TcpServer
         {
             targetSession.TerminateClient();
             sessionList.Remove(targetSession);
-            OnTerminate(targetSession);
+            OnTerminate?.Invoke(targetSession);
         }
     }
 
@@ -219,7 +219,7 @@ class TcpServer
 
                     TcpSession tcpSession = new TcpSession(client, ip.Address.ToString());
                     sessionList.Add(tcpSession);
-                    OnConnectAccept(tcpSession);
+                    OnConnectAccept?.Invoke(tcpSession);
 
                     Thread listenThread = new Thread(new ParameterizedThreadStart(ListenMessage));
                     listenThread.Start(client);
@@ -228,7 +228,7 @@ class TcpServer
         }
         catch(Exception e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
         }
     }
     private void ListenMessage(object socket)
@@ -250,7 +250,7 @@ class TcpServer
         }
         catch(Exception e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
         }
     }
     private ReceiveData ReceiveMessage(Socket clientSocket)
@@ -310,12 +310,12 @@ class TcpServer
         }
         catch(SocketException e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
             TerminateClient(clientSocket);
         }
         catch(Exception e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
         }
 
         return null;
@@ -358,7 +358,7 @@ class TcpServer
         }
         catch(SocketException e)
         {
-            Log(e.Message);
+            Log?.Invoke(e.Message);
             return false;
         }
     }
