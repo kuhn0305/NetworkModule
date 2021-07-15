@@ -40,7 +40,7 @@ class TcpClient
     public event ReceiveMessageHandler OnReceiveMessage;
 
     public delegate void LogDelegate(string message);
-    public LogDelegate PrintLog = null;
+    public event LogDelegate PrintLog = null;
 
     public Socket tcpSocket = null;
     private Thread connectThread = null;
@@ -67,6 +67,7 @@ class TcpClient
 
         invokeMessageThread = new Thread(InvokeMessageEvent);
         invokeMessageThread.Start();
+
     }
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.

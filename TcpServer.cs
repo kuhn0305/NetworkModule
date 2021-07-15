@@ -60,8 +60,12 @@ class TcpServer
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
 
+    public delegate void SessionChangedEventHandler(TcpSession clientSession);
+    public event SessionChangedEventHandler OnConnectAccept = delegate { };
+    public event SessionChangedEventHandler OnTerminate = delegate { };
+
     public delegate void LogEventHandler(string message);
-    public LogEventHandler Log;
+    public event LogEventHandler Log;
 
     public List<TcpSession> sessionList;
 
@@ -186,6 +190,7 @@ class TcpServer
 
         targetSession.TerminateClient();
         sessionList.Remove(targetSession);
+        OnTerminate(targetSession);
     }
 
     private void WaitClient()
@@ -210,6 +215,7 @@ class TcpServer
 
                     TcpSession tcpSession = new TcpSession(client, ip.Address.ToString());
                     sessionList.Add(tcpSession);
+                    OnConnectAccept(tcpSession);
 
                     Thread listenThread = new Thread(new ParameterizedThreadStart(ListenMessage));
                     listenThread.Start(client);
