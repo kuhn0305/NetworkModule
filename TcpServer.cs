@@ -177,20 +177,24 @@ class TcpServer
     /// <param name="targetSocket">신호를 보낸 클라이언트의 소켓</param>
     public void TerminateClient(Socket targetSocket)
     {
-        TcpSession targetSession = null;
+        //TcpSession targetSession = null;
 
-        foreach(TcpSession tcpSession in sessionList)
+        //foreach(TcpSession tcpSession in sessionList)
+        //{
+        //    if(tcpSession.socket == targetSocket)
+        //    {
+        //        targetSession = tcpSession;
+        //        break;
+        //    }
+        //}
+
+        TcpSession targetSession = sessionList.Find(s => s.socket == targetSocket);
+        if(targetSession != null)
         {
-            if(tcpSession.socket == targetSocket)
-            {
-                targetSession = tcpSession;
-                break;
-            }
+            targetSession.TerminateClient();
+            sessionList.Remove(targetSession);
+            OnTerminate(targetSession);
         }
-
-        targetSession.TerminateClient();
-        sessionList.Remove(targetSession);
-        OnTerminate(targetSession);
     }
 
     private void WaitClient()
