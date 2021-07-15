@@ -40,7 +40,7 @@ class TcpClient
     public event ReceiveMessageHandler OnReceiveMessage;
 
     public delegate void LogDelegate(string message);
-    public event LogDelegate PrintLog = null;
+    public event LogDelegate Log = delegate { };
 
     public Socket tcpSocket = null;
     private Thread connectThread = null;
@@ -67,7 +67,6 @@ class TcpClient
 
         invokeMessageThread = new Thread(InvokeMessageEvent);
         invokeMessageThread.Start();
-
     }
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.
@@ -142,7 +141,7 @@ class TcpClient
         }
         catch(Exception e)
         {
-            PrintLog(e.Message);
+            Log(e.Message);
         }
 
     }
@@ -150,15 +149,16 @@ class TcpClient
     {
         connectThread?.Abort();
         receiveThread?.Abort();
-        receiveThread?.Abort();
-        tcpSocket.Disconnect(true);
+        invokeMessageThread?.Abort();
+        tcpSocket.Close();
+        Log("Terminate");
     }
 
     private void Connect(object endPoint)
     {
         try
         {
-            PrintLog("Try Connect");
+            Log("Try Connect");
             IPEndPoint ipEndpoint = (IPEndPoint)endPoint;
 
             IAsyncResult connectResult = tcpSocket.BeginConnect(ipEndpoint, null, null);
@@ -167,7 +167,7 @@ class TcpClient
             if(tcpSocket.Connected)
             {
                 tcpSocket.EndConnect(connectResult);
-                PrintLog("Connect Accept");
+                Log("Connect Accept");
                 receiveDataQueue.Clear();
                 receiveThread = new Thread(ReceiveMessage);
                 receiveThread.Start();
@@ -178,27 +178,27 @@ class TcpClient
             else
             {
                 tcpSocket.Close();
-                throw new SocketException(10060);
+                throw new SocketException((int)SocketError.TimedOut);
             }
         }
         catch(SocketException e)
         {
-            PrintLog("Errror Connect A ; " + e.Message);
+            Log("Errror Connect A ; " + e.Message);
 
-            if(e.ErrorCode == 10060 && reconnectCount-- != 0)
+            if(e.ErrorCode == (int)SocketError.TimedOut && reconnectCount-- != 0)
             {
                 Thread.Sleep(3000);
-                PrintLog("Retry Connect");
+                Log("Retry Connect");
                 InitializeClient(serverIp, port);
             }
             else
             {
-                PrintLog("No Retry Connect");
+                Log("No Retry Connect");
             }
         }
         catch(Exception e)
         {
-            PrintLog("Errror Connect B ; " + e.Message);
+            Log("Errror Connect B ; " + e.Message);
         }
     }
     private void ReceiveMessage()
@@ -212,11 +212,6 @@ class TcpClient
                 byte[] dataSize = new byte[4];
                 tcpSocket.Receive(dataSize, 0, 4, SocketFlags.None);
                 dataLength = BitConverter.ToInt32(dataSize, 0);
-
-                if(dataLength == 0)
-                {
-                    return;
-                }
 
                 byte[] receivedData = new byte[dataLength];
                 int remainDataLength = dataLength;
@@ -235,8 +230,10 @@ class TcpClient
                     }
 
                     if(receivedDataLength == 0)
+                    {
                         break;
-
+                    }
+                    
                     cumulativeDataLength += receivedDataLength;
                     remainDataLength -= receivedDataLength;
                 }
@@ -253,9 +250,17 @@ class TcpClient
                 receiveDataQueue.Enqueue(receivedTcpData);
             }
         }
+        catch(SocketException e)
+        {
+            Log("Receive Socket Error : " + e.Message);
+            if(e.ErrorCode == (int)SocketError.ConnectionReset)
+            {
+                InitializeClient(serverIp, port);
+            }
+        }
         catch(Exception e)
         {
-            PrintLog("Receive Error : " + e.Message);
+            Log("Receive Other Error : " + e.Message);
         }
     }
     private void InvokeMessageEvent()
@@ -268,12 +273,12 @@ class TcpClient
                 OnReceiveMessage?.Invoke(receiveData);
             }
 
-            if(isInitialized && !tcpSocket.Connected)
-            {
-                PrintLog("Invoke Fail");
-                Terminate();
-                InitializeClient(serverIp, port);
-            }
+            //if(isInitialized && !tcpSocket.Connected)
+            //{
+            //    Log("Invoke Fail");
+            //    Terminate();
+            //    InitializeClient(serverIp, port);
+            //}
         }
     }
 }

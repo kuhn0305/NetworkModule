@@ -255,7 +255,8 @@ class TcpServer
         {
             if(!clientSocket.Connected)
             {
-                return null;
+                Log("Receive null Disconnect");
+                throw new SocketException((int)SocketError.NotConnected);
             }
 
             int dataLength;
@@ -266,7 +267,8 @@ class TcpServer
 
             if(dataLength == 0)
             {
-                return null;
+                Log("Receive null data");
+                throw new SocketException((int)SocketError.NetworkUnreachable);
             }
 
             // 헤더 받은 후, 널 값 체크
@@ -306,12 +308,12 @@ class TcpServer
         }
         catch(SocketException e)
         {
-            Log("Receive Error : " + e.Message + "/" + e.GetType());
+            Log("Receive Error : " + e.Message);
             TerminateClient(clientSocket);
         }
         catch(Exception e)
         {
-            Log("Receive Error : " + e.Message + "/" + e.GetType());
+            Log("Receive Error : " + e.Message);
         }
 
         return null;
