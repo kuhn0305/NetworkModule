@@ -224,7 +224,7 @@ class TcpServer
         }
         catch(Exception e)
         {
-            Log("Wait Error : " + e.Message);
+            Log(e.Message);
         }
     }
     private void ListenMessage(object socket)
@@ -246,7 +246,7 @@ class TcpServer
         }
         catch(Exception e)
         {
-            Log("Listen Error : " + e.Message);
+            Log(e.Message);
         }
     }
     private ReceiveData ReceiveMessage(Socket clientSocket)
@@ -255,7 +255,6 @@ class TcpServer
         {
             if(!clientSocket.Connected)
             {
-                Log("Receive null Disconnect");
                 throw new SocketException((int)SocketError.NotConnected);
             }
 
@@ -267,7 +266,6 @@ class TcpServer
 
             if(dataLength == 0)
             {
-                Log("Receive null data");
                 throw new SocketException((int)SocketError.NetworkUnreachable);
             }
 
@@ -308,12 +306,12 @@ class TcpServer
         }
         catch(SocketException e)
         {
-            Log("Receive Error : " + e.Message);
+            Log(e.Message);
             TerminateClient(clientSocket);
         }
         catch(Exception e)
         {
-            Log("Receive Error : " + e.Message);
+            Log(e.Message);
         }
 
         return null;
@@ -337,9 +335,7 @@ class TcpServer
         {
             if(!IsClientConnected(tcpSession.socket))
             {
-                Log("Socket Disconnected : " + tcpSession.socket.LocalEndPoint);
                 tcpSession.TerminateClient();
-
                 terminatedSessionList.Add(tcpSession);
             }
         }
@@ -354,13 +350,11 @@ class TcpServer
     {
         try
         {
-            Log("Socket Available : " + socket.Available);
-            Log("Socket Poll : " + socket.Poll(1, SelectMode.SelectRead));
             return !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
         }
         catch(SocketException e)
         {
-            Log("Check Connection Error : " + e.Message);
+            Log(e.Message);
             return false;
         }
     }

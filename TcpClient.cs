@@ -151,14 +151,12 @@ class TcpClient
         receiveThread?.Abort();
         invokeMessageThread?.Abort();
         tcpSocket.Close();
-        Log("Terminate");
     }
 
     private void Connect(object endPoint)
     {
         try
         {
-            Log("Try Connect");
             IPEndPoint ipEndpoint = (IPEndPoint)endPoint;
 
             IAsyncResult connectResult = tcpSocket.BeginConnect(ipEndpoint, null, null);
@@ -167,7 +165,6 @@ class TcpClient
             if(tcpSocket.Connected)
             {
                 tcpSocket.EndConnect(connectResult);
-                Log("Connect Accept");
                 receiveDataQueue.Clear();
                 receiveThread = new Thread(ReceiveMessage);
                 receiveThread.Start();
@@ -183,22 +180,16 @@ class TcpClient
         }
         catch(SocketException e)
         {
-            Log("Errror Connect A ; " + e.Message);
-
+            Log(e.Message);
             if(e.ErrorCode == (int)SocketError.TimedOut && reconnectCount-- != 0)
             {
                 Thread.Sleep(3000);
-                Log("Retry Connect");
                 InitializeClient(serverIp, port);
-            }
-            else
-            {
-                Log("No Retry Connect");
             }
         }
         catch(Exception e)
         {
-            Log("Errror Connect B ; " + e.Message);
+            Log(e.Message);
         }
     }
     private void ReceiveMessage()
@@ -207,11 +198,9 @@ class TcpClient
         {
             while(true)
             {
-                int dataLength;
-
                 byte[] dataSize = new byte[4];
                 tcpSocket.Receive(dataSize, 0, 4, SocketFlags.None);
-                dataLength = BitConverter.ToInt32(dataSize, 0);
+                int dataLength = BitConverter.ToInt32(dataSize, 0);
 
                 byte[] receivedData = new byte[dataLength];
                 int remainDataLength = dataLength;
@@ -252,7 +241,7 @@ class TcpClient
         }
         catch(SocketException e)
         {
-            Log("Receive Socket Error : " + e.Message);
+            Log(e.Message);
             if(e.ErrorCode == (int)SocketError.ConnectionReset)
             {
                 InitializeClient(serverIp, port);
@@ -260,7 +249,7 @@ class TcpClient
         }
         catch(Exception e)
         {
-            Log("Receive Other Error : " + e.Message);
+            Log(e.Message);
         }
     }
     private void InvokeMessageEvent()
