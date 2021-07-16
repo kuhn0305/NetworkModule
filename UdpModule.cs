@@ -150,7 +150,8 @@ public class UdpModule
             {
                 if (receiveDataQueue.Count > 0)
                 {
-                    OnReceiveMessage?.Invoke(receiveDataQueue.Dequeue());
+                    ReceiveData data = receiveDataQueue.Dequeue();
+                    OnReceiveMessage?.Invoke(data);
                 }
             }
         }
