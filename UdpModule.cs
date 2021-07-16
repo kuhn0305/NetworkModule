@@ -109,9 +109,8 @@ public class UdpModule
     }
     public void Terminate()
     {
-        receiveThread.Abort();
-        invokeMessageEventThread.Abort();
-
+        receiveThread?.Abort();
+        invokeMessageEventThread?.Abort();
         udpClient.Close();
     }
 
