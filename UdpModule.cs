@@ -38,6 +38,8 @@ public class UdpModule
     /// }
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
+    public delegate void LogEventHandler(string message);
+    public event LogEventHandler Log;
 
     private UdpClient udpClient;
     private Thread receiveThread;
@@ -77,7 +79,7 @@ public class UdpModule
         invokeMessageEventThread.Start();
 
         // UDP가 ICMP 메세지를 받아 수신을 정지하는 것을 막기 위한 장치 (Exception을 무시한다)
-        udpClient.Client.IOControl(udpConnectionReset, new byte[] { 0, 0, 0, 0 }, null);
+        // udpClient.Client.IOControl(udpConnectionReset, new byte[] { 0, 0, 0, 0 }, null);
     }
     /// <summary>
     /// UDP 모듈을 통해 데이터를 전달한다.
@@ -103,15 +105,12 @@ public class UdpModule
             targetIP = broadcastIP;
         }
 
-        Console.WriteLine(Encoding.Default.GetString(sendData));
-
         udpClient.Send(sendData, sendData.Length, targetIP, targetPort);
     }
     public void Terminate()
     {
-        receiveThread.Abort();
-        invokeMessageEventThread.Abort();
-
+        receiveThread?.Abort();
+        invokeMessageEventThread?.Abort();
         udpClient.Close();
     }
 
@@ -131,17 +130,16 @@ public class UdpModule
                 contentsData = new byte[receivedData.Length - headerData.Length];
 
                 Array.Copy(receivedData, headerData, headerData.Length);
-                headerData = Array.FindAll(headerData, o => o != 0);
                 Array.Copy(receivedData, headerData.Length, contentsData, 0, contentsData.Length);
+                headerData = Array.FindAll(headerData, o => o != 0);
 
                 ReceiveData receiveData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData);
-
                 receiveDataQueue.Enqueue(receiveData);
             }
         }
         catch (ThreadInterruptedException e)
         {
-
+            Log?.Invoke(e.Message);
         }
     }
     private void InvokeMessageEvent()
@@ -152,13 +150,14 @@ public class UdpModule
             {
                 if (receiveDataQueue.Count > 0)
                 {
-                    OnReceiveMessage?.Invoke(receiveDataQueue.Dequeue());
+                    ReceiveData data = receiveDataQueue.Dequeue();
+                    OnReceiveMessage?.Invoke(data);
                 }
             }
         }
         catch (ThreadInterruptedException e)
         {
-
+            Log?.Invoke(e.Message);
         }
     }
 }
