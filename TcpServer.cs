@@ -219,6 +219,7 @@ class TcpServer
                         tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                         tcpSocket.Bind(ipEndPoint);
                         tcpSocket.Listen(10);
+                        isMaxConnection = false;
                     }
                     Socket client = tcpSocket.Accept();
                     IPEndPoint ip = (IPEndPoint)client.RemoteEndPoint;
