@@ -202,6 +202,11 @@ class TcpClient
                 tcpSocket.Receive(dataSize, 0, 4, SocketFlags.None);
                 int dataLength = BitConverter.ToInt32(dataSize, 0);
 
+                if (dataLength == 0)
+                {
+                    throw new SocketException((int)SocketError.ConnectionReset);
+                }
+
                 byte[] receivedData = new byte[dataLength];
                 int remainDataLength = dataLength;
                 int cumulativeDataLength = 0;
