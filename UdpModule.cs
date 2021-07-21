@@ -101,7 +101,7 @@ public class UdpModule
         Array.Copy(headerData, sendData, headerData.Length);
         Array.Copy(contentsData, 0, sendData, headerData.Length, contentsData.Length);
 
-        if (targetIP == null)
+        if(targetIP == null)
         {
             targetIP = broadcastIP;
         }
@@ -120,26 +120,24 @@ public class UdpModule
     {
         try
         {
-            byte[] receivedData = null;
-            byte[] headerData = new byte[headerSize];
-            byte[] contentsData = null;
-
             IPEndPoint senderEndPoint = new IPEndPoint(IPAddress.Any, 0);
 
-            while (true)
+            while(true)
             {
-                receivedData = udpClient.Receive(ref senderEndPoint);
-                contentsData = new byte[receivedData.Length - headerData.Length];
+                byte[] receivedData = udpClient.Receive(ref senderEndPoint);
+
+                byte[] headerData = new byte[headerSize];
+                byte[] contentsData = new byte[receivedData.Length - headerData.Length];
 
                 Array.Copy(receivedData, headerData, headerData.Length);
-                Array.Copy(receivedData, headerData.Length, contentsData, 0, contentsData.Length);
                 headerData = Array.FindAll(headerData, o => o != 0);
+                Array.Copy(receivedData, headerSize, contentsData, 0, contentsData.Length);
 
                 ReceiveData receiveData = new ReceiveData(Encoding.Default.GetString(headerData), contentsData);
                 receiveDataQueue.Enqueue(receiveData);
             }
         }
-        catch (ThreadInterruptedException e)
+        catch(ThreadInterruptedException e)
         {
             Log?.Invoke(e.Message);
         }
@@ -148,16 +146,16 @@ public class UdpModule
     {
         try
         {
-            while (true)
+            while(true)
             {
-                if (receiveDataQueue.Count > 0)
+                if(receiveDataQueue.Count > 0)
                 {
                     ReceiveData data = receiveDataQueue.Dequeue();
                     OnReceiveMessage?.Invoke(data);
                 }
             }
         }
-        catch (ThreadInterruptedException e)
+        catch(ThreadInterruptedException e)
         {
             Log?.Invoke(e.Message);
         }
