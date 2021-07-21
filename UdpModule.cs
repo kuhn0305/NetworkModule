@@ -38,6 +38,8 @@ public class UdpModule
     /// }
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
+    public delegate void SendMessageHandler(string message);
+    public event SendMessageHandler OnSendMessage;
     public delegate void LogEventHandler(string message);
     public event LogEventHandler Log;
 
@@ -47,7 +49,6 @@ public class UdpModule
 
     private Queue<ReceiveData> receiveDataQueue;
 
-    private readonly int udpConnectionReset = -1744830452;
     private readonly int headerSize = 10;
     private string broadcastIP;
 
@@ -106,6 +107,7 @@ public class UdpModule
         }
 
         udpClient.Send(sendData, sendData.Length, targetIP, targetPort);
+        OnSendMessage?.Invoke($"{header} {BitConverter.ToInt64(contentsData, 0)}");
     }
     public void Terminate()
     {

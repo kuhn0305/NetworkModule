@@ -60,6 +60,9 @@ class TcpServer
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
 
+    public delegate void SendMessageHandler(string data);
+    public event SendMessageHandler OnSendMessage;
+
     public delegate void SessionChangedEventHandler(TcpSession clientSession);
     public event SessionChangedEventHandler OnConnectAccept;
     public event SessionChangedEventHandler OnTerminate;
@@ -161,6 +164,8 @@ class TcpServer
                 cumulativeDataLength += sendDataLength;
                 remainDataLength -= sendDataLength;
             }
+
+            OnSendMessage?.Invoke($"{header} {Encoding.Default.GetString(contentsData)}");
         }
         catch
         {
