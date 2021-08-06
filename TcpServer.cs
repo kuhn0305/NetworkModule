@@ -8,7 +8,7 @@ using System.Threading;
 /// <summary>
 /// TCP Server 모듈
 /// </summary>
-class TcpServer
+public class TcpServer
 {
     /// <summary>
     /// Tcp Server에 접속한 Session 저장 형식
