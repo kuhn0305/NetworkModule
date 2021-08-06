@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Xml;
+using System.Collections.Generic;
 
 class XmlHandler
 {
@@ -45,6 +46,24 @@ class XmlHandler
 
         return targetValue;
     }
+
+    public List<string> ReadXmlNodeList(string firstDepthNodeName, string secondDepthNodeName)
+    {
+        List<string> dataList = new List<string>();
+
+        XmlNodeList xmlNodeList = xml.SelectNodes($"/Root/{firstDepthNodeName}/{secondDepthNodeName}");
+
+        foreach (XmlNode xmlNode in xmlNodeList)
+        {
+            foreach (XmlElement xe in xmlNode)
+            {
+                dataList.Add(xe.InnerText);
+            }
+        }
+
+        return dataList;
+    }
+
     /// <summary>
     /// Node 경로를 받아, 해당 Xml의 Data를 생성하거나 덮어씌운다.
     /// </summary>
