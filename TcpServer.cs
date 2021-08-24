@@ -46,6 +46,20 @@ public class TcpServer
         }
     }
 
+    private class SendData
+    {
+        public string header;
+        public byte[] content;
+        public TcpSession session;
+
+        public SendData(string header, byte[] content, TcpSession session)
+        {
+            this.header = header;
+            this.content = content;
+            this.session = session;
+        }
+    }
+
     public delegate void ReceiveMessageHandler(ReceiveData data);
     /// <summary>
     /// TCP Server를 통해 전달받은 데이터를 처리한 이벤트
@@ -64,6 +78,9 @@ public class TcpServer
     public event SessionChangedEventHandler OnConnectAccept;
     public event SessionChangedEventHandler OnTerminate;
 
+    public delegate void TransferProcessingHandler(float percent);
+    public event TransferProcessingHandler OnProcessing;
+
     public delegate void LogEventHandler(string message);
     public event LogEventHandler Log;
 
@@ -72,6 +89,8 @@ public class TcpServer
     private Socket tcpSocket = null;
     private Thread waitThread = null;
     private Thread invokeMessageThread = null;
+    private Thread waitMessageTrhead = null;
+    private Thread findDisconnectedThread = null;
 
     private Queue<ReceiveData> receiveDataQueue;
 
@@ -81,13 +100,24 @@ public class TcpServer
     private bool isMaxConnection;
     private IPEndPoint ipEndPoint;
 
+    private Queue<SendData> sendDataQueue;
+
+    private bool isSendProcessWorking = false;
+
     public TcpServer()
     {
         sessionList = new List<TcpSession>();
         receiveDataQueue = new Queue<ReceiveData>();
+        sendDataQueue = new Queue<SendData>();
 
-        invokeMessageThread = new Thread(InvokeMessageEvent);
+        invokeMessageThread = new Thread(InvokeReceiveMessageEvent);
         invokeMessageThread.Start();
+
+        waitMessageTrhead = new Thread(InvokeSendMessageEvent);
+        waitMessageTrhead.Start();
+
+        findDisconnectedThread = new Thread(RemoveTerminatedClients);
+        findDisconnectedThread.Start();
     }
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.
@@ -125,7 +155,18 @@ public class TcpServer
     {
         try
         {
-            if(!clientSession.socket.Connected)
+            if (isSendProcessWorking)
+            {
+                SendData sendDataInfo = new SendData(header, contentsData, clientSession);
+
+                sendDataQueue.Enqueue(sendDataInfo);
+
+                return;
+            }
+
+            isSendProcessWorking = true;
+
+            if (!clientSession.socket.Connected)
             {
                 return;
             }
@@ -144,12 +185,14 @@ public class TcpServer
             clientSession.socket.Send(dataSize);
 
             int cumulativeDataLength = 0;
-            int remainDataLength = dataLength;
+            int remainDataLength = (int)dataLength;
             int sendDataLength = 0;
 
-            while(cumulativeDataLength < dataLength)
+            while (cumulativeDataLength < dataLength)
             {
-                if(remainDataLength > maxPacketSize)
+                OnProcessing?.Invoke(((float)cumulativeDataLength / (float)dataLength) * 100);
+
+                if (remainDataLength > maxPacketSize)
                 {
                     sendDataLength = clientSession.socket.Send(sendData, cumulativeDataLength, maxPacketSize, SocketFlags.None);
                 }
@@ -161,10 +204,14 @@ public class TcpServer
                 cumulativeDataLength += sendDataLength;
                 remainDataLength -= sendDataLength;
             }
-        }
-        catch
-        {
 
+            OnProcessing?.Invoke((float)100);
+
+            isSendProcessWorking = false;
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.StackTrace);
         }
     }
     public void Terminate()
@@ -179,23 +226,15 @@ public class TcpServer
     /// <param name="targetSocket">신호를 보낸 클라이언트의 소켓</param>
     public void TerminateClient(Socket targetSocket)
     {
-        //TcpSession targetSession = null;
-
-        //foreach(TcpSession tcpSession in sessionList)
-        //{
-        //    if(tcpSession.socket == targetSocket)
-        //    {
-        //        targetSession = tcpSession;
-        //        break;
-        //    }
-        //}
-
         TcpSession targetSession = sessionList.Find(s => s.socket == targetSocket);
+
         if(targetSession != null)
         {
+            OnTerminate?.Invoke(targetSession);
+
             targetSession.TerminateClient();
             sessionList.Remove(targetSession);
-            OnTerminate?.Invoke(targetSession);
+
         }
     }
 
@@ -205,12 +244,6 @@ public class TcpServer
         {
             while(true)
             {
-                // 클라이언트가 Full이라면 쓰레기 Session을 탐색하여 삭제한다.
-                if(sessionList.Count >= maxClientCount)
-                {
-                    //RemoveTerminatedClients();
-                }
-
                 // 탐색 이후 Session List의 갯수를 확인한다.
                 if(sessionList.Count < maxClientCount)
                 {
@@ -223,8 +256,6 @@ public class TcpServer
                     }
                     Socket client = tcpSocket.Accept();
                     IPEndPoint ip = (IPEndPoint)client.RemoteEndPoint;
-
-                    //RemoveTerminatedClients();
 
                     TcpSession tcpSession = new TcpSession(client, ip.Address.ToString());
                     sessionList.Add(tcpSession);
@@ -276,11 +307,9 @@ public class TcpServer
                 throw new SocketException((int)SocketError.NotConnected);
             }
 
-            int dataLength;
-
             byte[] dataSize = new byte[4];
             clientSocket.Receive(dataSize, 0, 4, SocketFlags.None);
-            dataLength = BitConverter.ToInt32(dataSize, 0);
+            int dataLength = BitConverter.ToInt32(dataSize, 0);
 
             if(dataLength == 0)
             {
@@ -305,7 +334,9 @@ public class TcpServer
                 }
 
                 if(receivedDataLength == 0)
+                {
                     break;
+                }
 
                 cumulativeDataLength += receivedDataLength;
                 remainDataLength -= receivedDataLength;
@@ -334,7 +365,7 @@ public class TcpServer
 
         return null;
     }
-    private void InvokeMessageEvent()
+    private void InvokeReceiveMessageEvent()
     {
         while(true)
         {
@@ -345,30 +376,44 @@ public class TcpServer
             }
         }
     }
-    private void RemoveTerminatedClients()
+    private void InvokeSendMessageEvent()
     {
-        List<TcpSession> terminatedSessionList = new List<TcpSession>();
-
-        foreach(TcpSession tcpSession in sessionList)
+        while (true)
         {
-            if(!IsClientConnected(tcpSession.socket))
+            if (!isSendProcessWorking && sendDataQueue.Count > 0)
             {
-                tcpSession.TerminateClient();
-                terminatedSessionList.Add(tcpSession);
+                SendData sendData = sendDataQueue.Dequeue();
+                SendMessage(sendData.header, sendData.content, sendData.session);
             }
         }
-
-        foreach(TcpSession targetPlayer in terminatedSessionList)
+    }
+    private void RemoveTerminatedClients()
+    {
+        while(true)
         {
-            sessionList.Remove(targetPlayer);
+            List<TcpSession> terminatedSessionList = new List<TcpSession>();
+
+            foreach (TcpSession tcpSession in sessionList)
+            {
+                if (!IsClientConnected(tcpSession.socket))
+                {
+                    terminatedSessionList.Add(tcpSession);
+                }
+            }
+
+            foreach (TcpSession targetSession in terminatedSessionList)
+            {
+                TerminateClient(targetSession.socket);
+            }
+
+            Thread.Sleep(1000);
         }
     }
-
     private bool IsClientConnected(Socket socket)
     {
         try
         {
-            return !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
+            return socket.Connected;
         }
         catch(SocketException e)
         {
