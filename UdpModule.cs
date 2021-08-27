@@ -43,7 +43,7 @@ public class UdpModule
 
     private UdpClient udpClient;
     private Thread receiveThread;
-    private Thread invokeMessageEventThread;
+    private Thread invokeMessageThread;
 
     private Queue<ReceiveData> receiveDataQueue;
 
@@ -75,8 +75,8 @@ public class UdpModule
         receiveThread = new Thread(ReceiveMessage);
         receiveThread.Start();
 
-        invokeMessageEventThread = new Thread(InvokeMessageEvent);
-        invokeMessageEventThread.Start();
+        invokeMessageThread = new Thread(InvokeMessageEvent);
+        invokeMessageThread.Start();
 
         // UDP가 ICMP 메세지를 받아 수신을 정지하는 것을 막기 위한 장치 (Exception을 무시한다)
         // udpClient.Client.IOControl(udpConnectionReset, new byte[] { 0, 0, 0, 0 }, null);
@@ -110,7 +110,7 @@ public class UdpModule
     public void Terminate()
     {
         receiveThread?.Abort();
-        invokeMessageEventThread?.Abort();
+        invokeMessageThread?.Abort();
         udpClient.Close();
     }
 

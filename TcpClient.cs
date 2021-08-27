@@ -8,7 +8,7 @@ using System.Threading;
 /// <summary>
 /// TCP Client 모듈
 /// </summary>
-class TcpClient
+public class TcpClient
 {
     /// <summary>
     /// Tcp Client로 전달받은 데이터 형식
@@ -19,6 +19,18 @@ class TcpClient
         public byte[] content;
 
         public ReceiveData(string header, byte[] content)
+        {
+            this.header = header;
+            this.content = content;
+        }
+    }
+
+    private class SendData
+    {
+        public string header;
+        public byte[] content;
+
+        public SendData(string header, byte[] content)
         {
             this.header = header;
             this.content = content;
@@ -46,17 +58,21 @@ class TcpClient
     private Thread connectThread = null;
     private Thread receiveThread = null;
     private Thread invokeMessageThread = null;
+    private Thread waitMessageTrhead = null;
 
     private Queue<ReceiveData> receiveDataQueue;
 
-    private bool isInitialized = false;
     private int reconnectCount;
     private string serverIp;
     private int port;
     private int maxReconnectCount;
 
-    private readonly int maxPacketSize = 1024;
     private readonly int headerSize = 10;
+    private readonly int maxPacketSize = 1024;
+
+    private Queue<SendData> sendDataQueue;
+
+    private bool isSendProcessWorking = false;
 
     public TcpClient(int maxReconnectCount)
     {
@@ -64,9 +80,13 @@ class TcpClient
         reconnectCount = maxReconnectCount;
 
         receiveDataQueue = new Queue<ReceiveData>();
+        sendDataQueue = new Queue<SendData>();
 
         invokeMessageThread = new Thread(InvokeMessageEvent);
         invokeMessageThread.Start();
+
+        waitMessageTrhead = new Thread(InvokeSendMessageEvent);
+        waitMessageTrhead.Start();
     }
     /// <summary>
     /// TCP 모듈을 초기화시켜준다.
@@ -79,7 +99,6 @@ class TcpClient
     /// </usage>
     public void InitializeClient(string serverIp, int port)
     {
-        isInitialized = false;
         this.serverIp = serverIp;
         this.port = port;
 
@@ -101,7 +120,18 @@ class TcpClient
     {
         try
         {
-            if(!tcpSocket.Connected)
+            if (isSendProcessWorking)
+            {
+                SendData sendDataInfo = new SendData(header, contentsData);
+
+                sendDataQueue.Enqueue(sendDataInfo);
+
+                return;
+            }
+
+            isSendProcessWorking = true;
+
+            if (!tcpSocket.Connected)
             {
                 return;
             }
@@ -138,6 +168,8 @@ class TcpClient
                 cumulativeDataLength += sendDataLength;
                 remainDataLength -= sendDataLength;
             }
+
+            isSendProcessWorking = false;
         }
         catch(Exception e)
         {
@@ -169,7 +201,6 @@ class TcpClient
                 receiveThread = new Thread(ReceiveMessage);
                 receiveThread.Start();
 
-                isInitialized = true;
                 reconnectCount = maxReconnectCount;
             }
             else
@@ -266,13 +297,18 @@ class TcpClient
                 ReceiveData receiveData = receiveDataQueue.Dequeue();
                 OnReceiveMessage?.Invoke(receiveData);
             }
+        }
+    }
 
-            //if(isInitialized && !tcpSocket.Connected)
-            //{
-            //    Log("Invoke Fail");
-            //    Terminate();
-            //    InitializeClient(serverIp, port);
-            //}
+    private void InvokeSendMessageEvent()
+    {
+        while (true)
+        {
+            if (!isSendProcessWorking && sendDataQueue.Count > 0)
+            {
+                SendData sendData = sendDataQueue.Dequeue();
+                SendMessage(sendData.header, sendData.content);
+            }
         }
     }
 }
