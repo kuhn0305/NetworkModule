@@ -51,6 +51,9 @@ public class TcpClient
     /// </usage>
     public event ReceiveMessageHandler OnReceiveMessage;
 
+    public delegate void ConnectionChangedEventHandler();
+    public event ConnectionChangedEventHandler OnConnectAccepted;
+
     public delegate void LogDelegate(string message);
     public event LogDelegate Log;
 
@@ -200,6 +203,8 @@ public class TcpClient
                 receiveDataQueue.Clear();
                 receiveThread = new Thread(ReceiveMessage);
                 receiveThread.Start();
+
+                OnConnectAccepted?.Invoke();
 
                 reconnectCount = maxReconnectCount;
             }
