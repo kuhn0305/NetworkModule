@@ -90,7 +90,7 @@ public class TcpServer
     private Thread waitThread = null;
     private Thread invokeMessageThread = null;
     private Thread waitMessageTrhead = null;
-    private Thread findDisconnectedThread = null;
+    private Thread findDisconnectedThread = null; 
 
     private Queue<ReceiveData> receiveDataQueue;
 
@@ -155,6 +155,11 @@ public class TcpServer
     {
         try
         {
+            if (!clientSession.socket.Connected)
+            {
+                return;
+            }
+
             if (isSendProcessWorking)
             {
                 SendData sendDataInfo = new SendData(header, contentsData, clientSession);
@@ -165,11 +170,6 @@ public class TcpServer
             }
 
             isSendProcessWorking = true;
-
-            if (!clientSession.socket.Connected)
-            {
-                return;
-            }
 
             byte[] headerData = Encoding.Default.GetBytes(header);
             Array.Resize(ref headerData, headerSize);
@@ -211,6 +211,8 @@ public class TcpServer
         }
         catch (Exception e)
         {
+            isSendProcessWorking = false;
+
             Console.WriteLine(e.StackTrace);
         }
     }
