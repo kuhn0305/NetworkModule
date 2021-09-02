@@ -123,6 +123,11 @@ public class TcpClient
     {
         try
         {
+            if (!tcpSocket.Connected)
+            {
+                return;
+            }
+
             if (isSendProcessWorking)
             {
                 SendData sendDataInfo = new SendData(header, contentsData);
@@ -133,11 +138,6 @@ public class TcpClient
             }
 
             isSendProcessWorking = true;
-
-            if (!tcpSocket.Connected)
-            {
-                return;
-            }
 
             byte[] headerData = Encoding.UTF8.GetBytes(header);
             Array.Resize(ref headerData, headerSize);
@@ -176,12 +176,16 @@ public class TcpClient
         }
         catch(Exception e)
         {
+            isSendProcessWorking = false;
+
             Log?.Invoke(e.Message);
         }
 
     }
     public void Terminate()
     {
+        isSendProcessWorking = false;
+
         connectThread?.Abort();
         receiveThread?.Abort();
         invokeMessageThread?.Abort();
