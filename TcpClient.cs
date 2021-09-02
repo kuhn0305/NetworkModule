@@ -102,6 +102,7 @@ public class TcpClient
     /// </usage>
     public void InitializeClient(string serverIp, int port)
     {
+        Log?.Invoke("Initialized");
         this.serverIp = serverIp;
         this.port = port;
 
@@ -123,8 +124,11 @@ public class TcpClient
     {
         try
         {
+            Log?.Invoke("Send Called");
+
             if (isSendProcessWorking)
             {
+                Log?.Invoke("Send Waiting");
                 SendData sendDataInfo = new SendData(header, contentsData);
 
                 sendDataQueue.Enqueue(sendDataInfo);
@@ -134,8 +138,11 @@ public class TcpClient
 
             isSendProcessWorking = true;
 
+            Log?.Invoke("Send Started");
+
             if (!tcpSocket.Connected)
             {
+                Log?.Invoke("Send Canceled by Disconnection");
                 return;
             }
 
@@ -173,6 +180,7 @@ public class TcpClient
             }
 
             isSendProcessWorking = false;
+            Log?.Invoke("Send Completed");
         }
         catch(Exception e)
         {
@@ -194,16 +202,19 @@ public class TcpClient
         {
             IPEndPoint ipEndpoint = (IPEndPoint)endPoint;
 
+            Log?.Invoke("Connect Start");
+
             IAsyncResult connectResult = tcpSocket.BeginConnect(ipEndpoint, null, null);
             bool success = connectResult.AsyncWaitHandle.WaitOne(5000, true);
 
             if(tcpSocket.Connected)
             {
+                Log?.Invoke("Connected");
                 tcpSocket.EndConnect(connectResult);
                 receiveDataQueue.Clear();
                 receiveThread = new Thread(ReceiveMessage);
                 receiveThread.Start();
-
+                 
                 OnConnectAccepted?.Invoke();
 
                 reconnectCount = maxReconnectCount;
