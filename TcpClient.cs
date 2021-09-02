@@ -124,8 +124,6 @@ public class TcpClient
     {
         try
         {
-            Log?.Invoke("Send Called");
-
             if (!tcpSocket.Connected)
             {
                 return;
@@ -133,23 +131,12 @@ public class TcpClient
 
             if (isSendProcessWorking)
             {
-                Log?.Invoke("Send Waiting");
                 SendData sendDataInfo = new SendData(header, contentsData);
-
                 sendDataQueue.Enqueue(sendDataInfo);
-
                 return;
             }
 
             isSendProcessWorking = true;
-
-            Log?.Invoke("Send Started");
-
-            if (!tcpSocket.Connected)
-            {
-                Log?.Invoke("Send Canceled by Disconnection");
-                return;
-            }
 
             byte[] headerData = Encoding.UTF8.GetBytes(header);
             Array.Resize(ref headerData, headerSize);
@@ -185,12 +172,10 @@ public class TcpClient
             }
 
             isSendProcessWorking = false;
-            Log?.Invoke("Send Completed");
         }
         catch(Exception e)
         {
             isSendProcessWorking = false;
-
             Log?.Invoke(e.Message);
         }
 
