@@ -126,6 +126,11 @@ public class TcpClient
         {
             Log?.Invoke("Send Called");
 
+            if (!tcpSocket.Connected)
+            {
+                return;
+            }
+
             if (isSendProcessWorking)
             {
                 Log?.Invoke("Send Waiting");
@@ -184,12 +189,16 @@ public class TcpClient
         }
         catch(Exception e)
         {
+            isSendProcessWorking = false;
+
             Log?.Invoke(e.Message);
         }
 
     }
     public void Terminate()
     {
+        isSendProcessWorking = false;
+
         connectThread?.Abort();
         receiveThread?.Abort();
         invokeMessageThread?.Abort();
