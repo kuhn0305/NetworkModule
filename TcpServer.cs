@@ -15,6 +15,14 @@ public class TcpServer
     /// </summary>
     public class TcpSession
     {
+        private int index = -1;
+
+        public int Index
+        {
+            get { return index; }
+            set { index = value; }
+        }
+
         public Socket socket;
         public string ip;
 
